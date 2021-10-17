@@ -12,11 +12,117 @@
     <script src="./webgl-debug.js" defer></script>
     <script src="./webgl-utils.js" defer></script>
 
-    <script id="shader-vs" type="x-shader/x-vertex"></script>
-    <script id="shader-fs" type="x-shader/x-fragment"></script>
+    <script id="shader-vs" type="x-shader/x-vertex">
+      attribute vec3 aVertexPosition;
+      attribute vec3 aVertexNormal;
+      attribute vec3 aTextureCoordinates;
+
+      uniform mat4 uMVMatrix;
+      uniform mat4 uPMatrix;
+      uniform mat3 uNMatrix;
+
+      uniform vec3 uLightPosition;
+      uniform vec3 uAmibientLightColor;
+      uniform vec3 uDiffuseLightColor;
+      uniform vec3 uSpecularLightColor;
+
+      varying vec2 vTextureCoordinates;
+      varying vec3 vLightWeighting;
+
+      const float shininess = 32.0;
+
+      void main() {
+        vec4 vertexPositionEye4 = uMVMatrix * vec4(aVertexPosition, 1.0);
+        vec3 vertexPositionEye3 = vertexPositionEye4.xyz / vertexPositionEye4.w;
+
+        vec3 vertexToLightSource = normalize(uLightPosition - vertexPositionEye3);
+
+        vec3 normalEye = normalize(uNMatrix * aVertexNormal);
+
+        float diffuseLightWeightning = max(dot(normalEye, vectorToLightSource), 0.0);
+
+        vec3 reflectionVector = normalize(reflect(-vectorToLightSource, normalEye));
+
+        vec3 viewVectorEye = -normalize(vertexPositionEye3);
+
+        float rdotv = max(dot(reflectionVector, viewVectorEye), 0.0);
+
+        float specularLightWeightning = pow(rdotv, shininess);
+
+        vLightWeighting = uAmibientLightColor +
+                          uDiffuseLightColor * diffuseLightWeightning +
+                          uSpecularLightColor * specularLightWeightning;
+
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        vTextureCoordinates = aTextureCoordinates;
+      }
+    </script>
+    <script id="shader-fs" type="x-shader/x-fragment">
+      precision mediump float;
+
+      varying vec2 vTextureCoordinates;
+      varying vec3 vLightWeighting;
+      uniform sampler2D uSampler;
+
+      void main() {
+        vec4 texelColor = texture2D(uSampler, vTextureCoordinates);
+
+        gl_FragColor = vec4(vLightWeighting.rgb * texelColor.rgb, texelColor.a);
+      }
+    </script>
   </head>
   <body onload="startup();">
     <canvas id="myGLCanvas" width="500" height="500"></canvas>
     <div id="fps-counter">FPS: <span id="fps">--</span></div>
   </body>
 </html>
+
+<!-- 
+  7-1 예제 버텍스 셰이더와 차이점
+
+  사실상 차이점이 거의 없음.
+  지난 번에 해당 버텍스 셰이더에 대해 정리한 내용 그대로 참고하면 됨.
+
+  단, 조명 계산 뿐만 아니라, 텍스처 좌표도 가져와서 사용해야 하므로,
+  
+  -텍스처 uniform 변수
+  -프래그먼트 셰이더에서 사용할 텍스처 varying 변수
+  -main 함수에서 varying 변수에 텍스처 uniform 변수를 할당
+  
+  위와 같이 3개의 코드가 추가되었음.
+
+  
+  추가!)
+  참고로 지난 번 예제에서 정리하지 못한 게 있음.
+  버텍스 셰이더에서 반사 벡터(r)을 계산할 때,
+  reflect() 내장함수에서 -vectorToLightSource 로 광원 벡터(l)의 방향을 바꿔줘야 했던 이유
+
+  좀 더 정확하게 설명하자면, 말 그대로 '반사' 벡터를 구하려는 건데,
+  빛이 반사되려면, 광원에서 해당 버텍스 방향으로 도달하는 빛이 반사되는 거잖아?
+
+  그렇다면, 광원에서 버텍스 방향으로 도달하는 빛을 표현하는 벡터는
+  (버텍스 -> 광원) 방향이 아니라, (광원 -> 버텍스) 방향이지!
+
+  따라서, 당연히 (버텍스 -> 광원) 방향으로 맨 처음에 계산해놨던 광원 벡터를
+  -를 붙여서 방향을 뒤집어준 다음에 인자로 전달해줘야 겠지!
+-->
+
+<!-- 
+  7-2 예제 프래그먼트 셰이더와 차이점
+
+  일단 현재 예제와 7-2 예제 셰이더와의 공통점은
+  vLightWeighting (버텍스의 총 밝기값)을 가져와서 사용한다는 점.
+
+  그러나 조명과 텍스쳐 두 값을 모두 혼합해줘야 하기 때문에
+  아래의 두 개의 내용이 더 추가됨.
+  
+  -uSampler로 지정된 텍스처 이미지 유닛에 바인딩된 텍스처를 가져온 뒤, 
+  vTextureCoordinates 변수로 텍셀값을 가져온다는 점.
+  
+  -vLightWeighting 와 vTextureCoordinates 각각의 r, g, b 성분값들끼리
+  component-wise multiplication(아다마르 곱)을 계산하여 결과값을 얻는다는 점.
+
+  아다마르 곱에 대해서는 p.337에 필기로 정리해놓았으니 참고할 것.
+
+  추가로 알파채널의 값은 텍셀값의 알파값으로 할당해줬음!
+-->
