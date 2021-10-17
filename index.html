@@ -15,7 +15,7 @@
     <script id="shader-vs" type="x-shader/x-vertex">
       attribute vec3 aVertexPosition;
       attribute vec3 aVertexNormal;
-      attribute vec3 aTextureCoordinates;
+      attribute vec2 aTextureCoordinates;
 
       uniform mat4 uMVMatrix;
       uniform mat4 uPMatrix;
@@ -39,9 +39,9 @@
 
         vec3 normalEye = normalize(uNMatrix * aVertexNormal);
 
-        float diffuseLightWeightning = max(dot(normalEye, vectorToLightSource), 0.0);
+        float diffuseLightWeightning = max(dot(normalEye, vertexToLightSource), 0.0);
 
-        vec3 reflectionVector = normalize(reflect(-vectorToLightSource, normalEye));
+        vec3 reflectionVector = normalize(reflect(-vertexToLightSource, normalEye));
 
         vec3 viewVectorEye = -normalize(vertexPositionEye3);
 
